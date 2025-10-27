@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{% block title %}Conversational IVR{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='bupa.png') }}">
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            font-family: 'Montserrat', sans-serif;
+            color: #000000;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        .header {
+            background-color: #0d1846;
+            color: white;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            width: 100%;
+            font-size: 12px;
+        }
+
+        .toolbar {
+            flex-grow: 1;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .toolbar a {
+            color: white;
+            text-decoration: none;
+            margin-right: 20px;
+        }
+
+        .login {
+            margin-right: 20px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            z-index: 1000;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .footer {
+            background-color: #0d1846;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        button {
+            background-color: #0079c8;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 12px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #005fa3;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <a href="/">
+        <img src="{{ url_for('static', filename='bupa.png') }}" class="logo" alt="Logo" width="50" height="50">
+    </a>
+    <div class="header">
+        <div class="toolbar">
+            <div class="login">
+                <a href="/">Home</a>
+            </div>
+        </div>
+    </div>
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+    <div class="footer">
+        &copy; 2025 Conversational IVR. This is a non-production application, please proceed with caution.
+    </div>
+</body>
+
+</html>
