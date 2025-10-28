@@ -84,8 +84,12 @@ class SpeechService:
             logger.error(f"Error in text-to-speech conversion: {e}")
             return None
 
-    def transcribe_audio_stream(self, audio_data: bytes) -> Optional[str]:
-        """Transcribe audio data using Azure Speech Services."""
+    def transcribe_audio_stream(
+        self, audio_data: bytes, save_path: Optional[str] = None
+    ) -> Optional[str]:
+        """Transcribe audio data using Azure Speech Services.
+        If save_path is provided, write the WAV bytes there for debugging; otherwise use a temp file.
+        """
         if not self.speech_config:
             logger.error("Azure Speech Services not configured")
             return None
@@ -93,41 +97,46 @@ class SpeechService:
         import tempfile
         import os
 
-        # Save audio data to a temporary file for processing
+        file_path = save_path
+        cleanup = False
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                tmp_file.write(audio_data)
-                tmp_path = tmp_file.name
+            if not file_path:
+                # Use temporary file if no save_path provided
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".wav"
+                ) as tmp_file:
+                    tmp_file.write(audio_data)
+                    file_path = tmp_file.name
+                cleanup = True
+            else:
+                # Persist to the provided path for debugging
+                with open(file_path, "wb") as f:
+                    f.write(audio_data)
 
-            try:
-                from azure.cognitiveservices.speech.audio import AudioConfig
+            from azure.cognitiveservices.speech.audio import AudioConfig
 
-                audio_config = AudioConfig(filename=tmp_path)
-                recognizer = SpeechRecognizer(
-                    speech_config=self.speech_config, audio_config=audio_config
-                )
+            audio_config = AudioConfig(filename=file_path)
+            recognizer = SpeechRecognizer(
+                speech_config=self.speech_config, audio_config=audio_config
+            )
 
-                # Recognize speech
-                result = recognizer.recognize_once()
+            result = recognizer.recognize_once()
 
-                if result.reason.name == "ResultReason.RecognizedSpeech":
-                    logger.info(f"Recognized: {result.text}")
-                    return result.text
-                elif result.reason.name == "ResultReason.NoMatch":
-                    logger.warning("No speech could be recognized")
-                    return None
-                else:
-                    logger.warning(f"Recognition failed: {result.reason}")
-                    return None
-
-            finally:
-                # Clean up temporary file
-                if os.path.exists(tmp_path):
-                    try:
-                        os.unlink(tmp_path)
-                    except:
-                        pass
-
+            if result.reason.name == "ResultReason.RecognizedSpeech":
+                logger.info(f"Recognized: {result.text}")
+                return result.text
+            elif result.reason.name == "ResultReason.NoMatch":
+                logger.warning("No speech could be recognized")
+                return None
+            else:
+                logger.warning(f"Recognition failed: {result.reason}")
+                return None
         except Exception as e:
             logger.error(f"Error in transcription: {e}")
             return None
+        finally:
+            if cleanup and file_path and os.path.exists(file_path):
+                try:
+                    os.unlink(file_path)
+                except:
+                    pass

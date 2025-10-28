@@ -57,9 +57,22 @@ class Routes:
                 audio_file = request.files["audio"]
                 audio_data = audio_file.read()
 
+                # Save chunk to disk for debugging
+                import os
+                from datetime import datetime
+
+                base_dir = getattr(self.config, "STREAM_UPLOADS_DIR", "stream_uploads")
+                session_dir = os.path.join(base_dir, session_id)
+                os.makedirs(session_dir, exist_ok=True)
+                chunk_name = datetime.utcnow().strftime("%Y%m%dT%H%M%S%f") + ".wav"
+                chunk_path = os.path.join(session_dir, chunk_name)
+
                 # Transcribe this chunk (best-effort). Append if any text recognized.
                 partial_text = (
-                    self.speech_service.transcribe_audio_stream(audio_data) or ""
+                    self.speech_service.transcribe_audio_stream(
+                        audio_data, save_path=chunk_path
+                    )
+                    or ""
                 )
 
                 if session_id not in self.live_transcripts:

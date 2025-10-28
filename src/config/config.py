@@ -15,6 +15,7 @@ class Config:
 
     # Flask Configuration
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    STREAM_UPLOADS_DIR = os.environ.get("STREAM_UPLOADS_DIR", "stream_uploads")
 
     # Azure Speech Configuration
     AZURE_SPEECH_KEY = None
@@ -32,6 +33,11 @@ class Config:
         """Initialize configuration by loading API keys."""
         self._load_api_keys()
         self._validate_config()
+        # Ensure stream uploads directory exists
+        try:
+            os.makedirs(self.STREAM_UPLOADS_DIR, exist_ok=True)
+        except Exception:
+            pass
 
     def _load_api_keys(self):
         """Load API keys from keys.py or environment variables."""
