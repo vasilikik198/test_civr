@@ -35,6 +35,12 @@
     </div>
 
     <div style="margin-bottom: 20px;">
+        <h3 style="color: #0d1846;">Live Transcript (demo streaming):</h3>
+        <div id="liveTranscript"
+            style="background-color: #eef7ff; padding: 15px; border-radius: 5px; min-height: 60px;"></div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
         <h3 style="color: #0d1846;">Intent Analysis:</h3>
         <div id="intentDisplay" style="background-color: #e7f3ff; padding: 15px; border-radius: 5px;">
             <p style="color: #666; margin: 0;">Intent information will appear here...</p>
@@ -76,7 +82,36 @@
                 await processRecording(audioBlob);
             };
 
-            mediaRecorder.start();
+            // Start server-side streaming session
+            try {
+                await fetch('/api/stream/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+            } catch (e) { /* non-fatal */ }
+
+            // Send small chunks periodically to mimic live streaming
+            const CHUNK_MS = 1500; // 1.5s chunks
+            mediaRecorder.start(CHUNK_MS);
+
+            mediaRecorder.ondataavailable = async (event) => {
+                if (event.data && event.data.size > 0 && mediaRecorder.state !== 'inactive') {
+                    try {
+                        const wavBlob = await webmToWav(event.data);
+                        const formData = new FormData();
+                        formData.append('audio', wavBlob, 'chunk.wav');
+                        formData.append('session_id', sessionId);
+                        const r = await fetch('/api/stream/chunk', { method: 'POST', body: formData });
+                        const j = await r.json();
+                        if (j.success) {
+                            document.getElementById('liveTranscript').textContent = j.transcript || '';
+                        }
+                    } catch (err) {
+                        // ignore individual chunk errors
+                    }
+                }
+            };
             status.textContent = '🔴 Recording... Speak now';
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-block';
@@ -157,25 +192,33 @@
             wavBlob = audioBlob;
         }
 
-        // Transcribe the audio
-        status.textContent = '⏳ Transcribing...';
+        // Prefer accumulated transcript from streaming; fall back to single-shot
+        status.textContent = '⏳ Getting transcript...';
 
-        const formData = new FormData();
-        formData.append('audio', wavBlob, 'audio.wav');
+        let userMessage = '';
+        try {
+            const s = await fetch(`/api/stream/stop`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId })
+            });
+            const sj = await s.json();
+            if (sj && sj.success && sj.transcript) {
+                userMessage = sj.transcript;
+            }
+        } catch (e) { /* ignore */ }
+
+        if (!userMessage) {
+            status.textContent = '⏳ Transcribing...';
+            const formData = new FormData();
+            formData.append('audio', wavBlob, 'audio.wav');
+            const transcribeResponse = await fetch('/api/transcribe', { method: 'POST', body: formData });
+            const transcribeData = await transcribeResponse.json();
+            if (transcribeData.success) userMessage = transcribeData.transcript;
+        }
 
         try {
-            const transcribeResponse = await fetch('/api/transcribe', {
-                method: 'POST',
-                body: formData
-            });
-
-            const transcribeData = await transcribeResponse.json();
-
-            if (!transcribeData.success) {
-                throw new Error('Transcription failed');
-            }
-
-            const userMessage = transcribeData.transcript;
+            if (!userMessage) throw new Error('No transcript available');
             addToConversation('user', userMessage);
             status.textContent = '⏳ Analyzing intent and generating response...';
 

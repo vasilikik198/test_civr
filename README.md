@@ -99,6 +99,22 @@ Required for intent classification and response generation.
 - The system maintains conversation context across turns
 - Each session has a unique ID for conversation management
 
+ ## Demo without microphone (Azure VM)
+ 
+ Azure VMs usually cannot access a local microphone. The app supports a "live-like" streaming demo:
+ 
+ - The browser records small chunks (1.5s) and posts them to `/api/stream/chunk`.
+ - The server transcribes each chunk and accumulates a transcript per `session_id`.
+ - The UI shows a live transcript area while you speak/stream.
+ - On stop, the app uses the accumulated transcript (fallbacks to single-shot transcription if needed).
+ 
+ You can also simulate a phone call by programmatically uploading audio chunks from a prerecorded WAV/WebM instead of using a microphone (see `Twilio Media Streams` note below).
+ 
+ ### Twilio Media Streams (real phone simulation)
+ - Use Twilio Voice with Media Streams to stream bi-directional audio over WebSocket from a real phone call.
+ - Server receives 8000 Hz PCM16 chunks and forwards to Azure Speech; responses are synthesized with ElevenLabs and played back.
+ - This requires a TwiML app and a websocket handler; not included here but the API structure mirrors `/api/stream/chunk`.
+
 ## How it works
 - Click Start Recording and speak
 - Click Stop Recording; the browser converts WebM to WAV

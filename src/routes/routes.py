@@ -31,6 +31,93 @@ class Routes:
             """Home page with IVR interface."""
             return render_template("ivr.html")
 
+            # --- Chunked streaming endpoints to simulate live transcription ---
+            self.live_transcripts = {}
+
+            @self.app.route("/api/stream/start", methods=["POST"])
+            def stream_start():
+                """Start a new streaming session for live-like transcription."""
+                try:
+                    data = request.get_json(silent=True) or {}
+                    session_id = data.get("session_id", "default")
+                    self.live_transcripts[session_id] = ""
+                    return jsonify({"success": True, "session_id": session_id})
+                except Exception as e:
+                    logger.error(f"Error in stream_start: {e}")
+                    return jsonify({"error": str(e)}), 500
+
+            @self.app.route("/api/stream/chunk", methods=["POST"])
+            def stream_chunk():
+                """Accept a short audio chunk, transcribe it, and append to session transcript."""
+                try:
+                    session_id = request.form.get("session_id", "default")
+                    if "audio" not in request.files:
+                        return jsonify({"error": "No audio file provided"}), 400
+
+                    audio_file = request.files["audio"]
+                    audio_data = audio_file.read()
+
+                    # Transcribe this chunk (best-effort). Append if any text recognized.
+                    partial_text = (
+                        self.speech_service.transcribe_audio_stream(audio_data) or ""
+                    )
+
+                    if session_id not in self.live_transcripts:
+                        self.live_transcripts[session_id] = ""
+
+                    if partial_text:
+                        # Add a space delimiter to keep words separated
+                        self.live_transcripts[session_id] = (
+                            self.live_transcripts[session_id] + " " + partial_text
+                        ).strip()
+
+                    return jsonify(
+                        {
+                            "success": True,
+                            "partial": partial_text,
+                            "transcript": self.live_transcripts[session_id],
+                            "session_id": session_id,
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Error in stream_chunk: {e}")
+                    return jsonify({"error": str(e)}), 500
+
+            @self.app.route("/api/stream/status", methods=["GET"])
+            def stream_status():
+                """Return current accumulated transcript for the session."""
+                try:
+                    session_id = request.args.get("session_id", "default")
+                    transcript = self.live_transcripts.get(session_id, "")
+                    return jsonify(
+                        {
+                            "success": True,
+                            "transcript": transcript,
+                            "session_id": session_id,
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Error in stream_status: {e}")
+                    return jsonify({"error": str(e)}), 500
+
+            @self.app.route("/api/stream/stop", methods=["POST"])
+            def stream_stop():
+                """Stop streaming and return the final accumulated transcript."""
+                try:
+                    data = request.get_json(silent=True) or {}
+                    session_id = data.get("session_id", "default")
+                    transcript = self.live_transcripts.get(session_id, "")
+                    return jsonify(
+                        {
+                            "success": True,
+                            "transcript": transcript,
+                            "session_id": session_id,
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Error in stream_stop: {e}")
+                    return jsonify({"error": str(e)}), 500
+
         @self.app.route("/api/transcribe", methods=["POST"])
         def transcribe_audio():
             """Transcribe audio data to text."""
