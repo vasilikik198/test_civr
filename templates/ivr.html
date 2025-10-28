@@ -192,7 +192,7 @@
             wavBlob = audioBlob;
         }
 
-        // Prefer accumulated transcript from streaming; fall back to single-shot
+        // Use accumulated transcript from streaming only (no single-shot fallback)
         status.textContent = '⏳ Getting transcript...';
 
         let userMessage = '';
@@ -208,16 +208,8 @@
             }
         } catch (e) { /* ignore */ }
 
-        if (!userMessage) {
-            status.textContent = '⏳ Transcribing...';
-            const formData = new FormData();
-            formData.append('audio', wavBlob, 'audio.wav');
-            const transcribeResponse = await fetch('/api/transcribe', { method: 'POST', body: formData });
-            const transcribeData = await transcribeResponse.json();
-            if (transcribeData.success) userMessage = transcribeData.transcript;
-        }
-
         try {
+            if (!userMessage) throw new Error('No transcript available from streaming');
             if (!userMessage) throw new Error('No transcript available');
             addToConversation('user', userMessage);
             status.textContent = '⏳ Analyzing intent and generating response...';
