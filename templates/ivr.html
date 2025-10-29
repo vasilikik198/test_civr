@@ -70,11 +70,26 @@
     async function startRecording() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
             audioChunks = [];
 
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
+            // Use chunk streaming handler for all dataavailable events
+            mediaRecorder.ondataavailable = async (event) => {
+                if (event.data && event.data.size > 0 && mediaRecorder.state !== 'inactive') {
+                    try {
+                        const wavBlob = await webmToWav(event.data);
+                        const formData = new FormData();
+                        formData.append('audio', wavBlob, 'chunk.wav');
+                        formData.append('session_id', sessionId);
+                        const r = await fetch('/api/stream/chunk', { method: 'POST', body: formData });
+                        const j = await r.json();
+                        if (j.success) {
+                            document.getElementById('liveTranscript').textContent = j.transcript || '';
+                        }
+                    } catch (err) {
+                        // ignore individual chunk errors
+                    }
+                }
             };
 
             mediaRecorder.onstop = async () => {
@@ -94,24 +109,6 @@
             // Send small chunks periodically to mimic live streaming
             const CHUNK_MS = 1500; // 1.5s chunks
             mediaRecorder.start(CHUNK_MS);
-
-            mediaRecorder.ondataavailable = async (event) => {
-                if (event.data && event.data.size > 0 && mediaRecorder.state !== 'inactive') {
-                    try {
-                        const wavBlob = await webmToWav(event.data);
-                        const formData = new FormData();
-                        formData.append('audio', wavBlob, 'chunk.wav');
-                        formData.append('session_id', sessionId);
-                        const r = await fetch('/api/stream/chunk', { method: 'POST', body: formData });
-                        const j = await r.json();
-                        if (j.success) {
-                            document.getElementById('liveTranscript').textContent = j.transcript || '';
-                        }
-                    } catch (err) {
-                        // ignore individual chunk errors
-                    }
-                }
-            };
             status.textContent = '🔴 Recording... Speak now';
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-block';
